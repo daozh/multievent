@@ -11,7 +11,8 @@ from datetime import datetime, timedelta
 FDRListFile= 'fdrgrid.csv' #(FDR#,Grid)(620,EI\n)
 EventListFile ='eventlist.csv' #(Grid, date, UTCtime)(EI,2011-12-05,041530)
 MDBFilePath='G:/' #./Year/Month 2015
-
+PreEventMinute=1
+PostEventMinute=5
 
 def median(l):
     half = len(l) // 2
@@ -25,21 +26,33 @@ def median(l):
 
 def searchfiles(dt):
 	datafile=''
-	if dt < datetime (2015,1,1):
-		return datafile
-	filepath=MDBFilePath+dt.strftime('%Y/%m/')
+	filepath=MDBFilePath+dt.strftime(r'%Y/%m/')
 	filedt= dt.replace(hour = dt.hour / 6*6)
-	filename='db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
+	filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
 	datafile = glob.glob(filepath+filename)
 	if not datafile:
-		if filedt.hour >= 1:
-			filedt=filedt.replace(hour=filedt.hour+1)
+		if dt.hour >= 1:
+			filedt=filedt.replace(hour=((dt.hour-1) / 6*6)+1)
 		else:
 			filedt=filedt.replace(hour=19)-timedelta(days=1)
-        filename='db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
-        #print filename
+        filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
         datafile = glob.glob(filepath+filename)
         #print datafile
+	#find if event data are across two files 
+	if datafile: 
+		filetime=datetime.strptime(datafile[0][-20:-4],'%m%d_%Y_%H%M%S')
+		moredatafile=[]
+		if dt-timedelta(minutes=PreEventMinute)<filetime:
+			print dt, dt-timedelta(minutes=PreEventMinute),'<',filetime,
+			filedt=filedt-timedelta(hours=6)
+			filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
+			moredatafile = glob.glob(filepath+filename)
+		if dt+timedelta(minutes=PostEventMinute)>filetime+timedelta(hours=6):
+			filedt=filedt+timedelta(hours=6)
+			filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
+			moredatafile = glob.glob(filepath+filename)
+			print dt,dt+timedelta(minutes=PostEventMinute),'>',filetime
+		datafile.extend(moredatafile)
 	return datafile
 def getEventList(eventfile):
 	with open (eventfile) as evfile:
@@ -63,26 +76,23 @@ def getFDRList(fdrfile):
 
 
 fdrlist=getFDRList(FDRListFile)
-#print fdrlist
 eventlist= getEventList(EventListFile)
 #print eventlist[1:10]
 for event in eventlist:
-	mdbfile = searchfiles(event['dt'])
-	if mdbfile:
-		print event['grid'],datetime.strftime(event['dt'], '%m%d_%Y_%H%M%S'), mdbfile
 
-"""
-dbfile=r'C:\Users\dzhou3\My Work\DataDump\Data\db1_0101_2015_080101.mdb'
-conn =pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='+dbfile)
-cursor=conn.cursor()
-
-for row in cursor.execute('SELECT * FROM FRURawData1009 WHERE Index<100'):
-    print row.FinalFreq
-
-
-for row in cursor.tables():
-    print row.table_name
-print "\n"
-cursor.close()
-conn.close()
-"""
+	if event['dt'] > datetime (2015,12,1):
+		mdbfiles = searchfiles(event['dt'])
+		if  len(mdbfiles)>0:
+			print event['grid'],event['dt'].strftime('%m%d_%Y_%H%M%S'),mdbfiles
+		else:
+			print event['grid'],event['dt'].strftime('%m%d_%Y_%H%M%S'),"Data File is NOT Found!!!!"
+		eventfdr=str.strip(str(fdrlist[event['grid']]))
+		eventdt = event['dt'].strftime('%Y-%m-%d %H:%M:%S')
+		for mdb in mdbfiles:
+			conn =pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='+mdb)
+			cursor=conn.cursor()
+			sql="SELECT `Sample_Date&Time` FROM FRURawData1009 WHERE  `Sample_Date&Time`< '2015-12-01' "
+			for row in cursor.execute(sql):
+				print row
+			cursor.close()
+			conn.close()
