@@ -8,7 +8,7 @@ conn =pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='+d
 cursor=conn.cursor()
 
 for row in cursor.execute('SELECT * FROM FRURawData1009 WHERE Index<100'):
-    print row.FirstFreq
+    print row.FinalFreq
 
 """
 for row in cursor.tables():
