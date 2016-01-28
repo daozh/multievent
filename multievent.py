@@ -87,11 +87,14 @@ for event in eventlist:
 		else:
 			print event['grid'],event['dt'].strftime('%m%d_%Y_%H%M%S'),"Data File is NOT Found!!!!"
 		eventfdr=str.strip(str(fdrlist[event['grid']]))
-		eventdt = event['dt'].strftime('%Y-%m-%d %H:%M:%S')
+		eventdt = event['dt'].strftime('#%Y-%m-%d %H:%M:%S#')
+		preEventDt=(event['dt']-timedelta(seconds=1)).strftime('#%Y-%m-%d %H:%M:%S#')
+		postEventDt=(event['dt']-timedelta(minutes=0)).strftime('#%Y-%m-%d %H:%M:%S#')
 		for mdb in mdbfiles:
 			conn =pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='+mdb)
 			cursor=conn.cursor()
-			sql="SELECT `Sample_Date&Time` FROM FRURawData1009 WHERE  `Sample_Date&Time`< '2015-12-01' "
+			sql='SELECT `Sample_Date&Time`,ConvNum,FinalFreq FROM FRURawData1009 WHERE `Sample_Date&Time` >='+preEventDt+' AND `Sample_Date&Time` <'+postEventDt
+			print sql
 			for row in cursor.execute(sql):
 				print row
 			cursor.close()
