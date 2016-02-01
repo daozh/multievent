@@ -10,49 +10,40 @@ from datetime import datetime, timedelta
 
 FDRListFile= 'fdrgrid.csv' #(FDR#,Grid)(620,EI\n)
 EventListFile ='eventlist.csv' #(Grid, date, UTCtime)(EI,2011-12-05,041530)
-MDBFilePath='G:/' #./Year/Month 2015
+MDBFilePath='K:/' #./Year/Month 2015
+DateRange= [datetime(2011,2,8),datetime(2012,3,26)] 
 PreEventMinute=1
 PostEventMinute=5
+HourMDBLength=8
 
 def median(l):
     half = len(l) // 2
-    for ind,elm in enumerate(l):
-        l.pop(ind)
-        l.insert(ind,math.sqrt(math.sqrt(elm)))
-    l.sort()
     if not len(l) % 2:
         return (l[half - 1] + l[half]) / 2.0
-    return pow(l[half],4)
+    return l[half]
 
 def searchfiles(dt):
 	datafile=''
 	filepath=MDBFilePath+dt.strftime(r'%Y/%m/')
-	filedt= dt.replace(hour = dt.hour / 6*6)
-	filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
-	datafile = glob.glob(filepath+filename)
-	if not datafile:
-		if dt.hour >= 1:
-			filedt=filedt.replace(hour=((dt.hour-1) / 6*6)+1)
+	monthfiles=glob.glob(filepath+"*.mdb")
+	monthfiles.sort()
+	monthfilename=[x[15:27] for x in monthfiles]
+	filedt= dt.replace(hour = dt.hour // HourMDBLength*HourMDBLength)
+	filename=filedt.strftime('%m%d_%Y_%H') 
+	if filename in monthfilename:
+		fileindex=monthfilename.index(filename)
+	else:
+		filedt=filedt+timedelta(hours=1)
+		filename=filedt.strftime('%m%d_%Y_%H') 
+		if  filename in monthfilename:
+			fileindex=monthfilename.index(filename)
 		else:
-			filedt=filedt.replace(hour=19)-timedelta(days=1)
-        filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
-        datafile = glob.glob(filepath+filename)
-        #print datafile
-	#find if event data are across two files 
-	if datafile: 
-		filetime=datetime.strptime(datafile[0][-20:-4],'%m%d_%Y_%H%M%S')
-		moredatafile=[]
-		if dt-timedelta(minutes=PreEventMinute)<filetime:
-			print dt, dt-timedelta(minutes=PreEventMinute),'<',filetime,
-			filedt=filedt-timedelta(hours=6)
-			filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
-			moredatafile = glob.glob(filepath+filename)
-		if dt+timedelta(minutes=PostEventMinute)>filetime+timedelta(hours=6):
-			filedt=filedt+timedelta(hours=6)
-			filename=r'db1_'+filedt.strftime('%m%d_%Y_%H') +'*.mdb'
-			moredatafile = glob.glob(filepath+filename)
-			print dt,dt+timedelta(minutes=PostEventMinute),'>',filetime
-		datafile.extend(moredatafile)
+			return []
+	#print fileindex
+	if fileindex>0:
+		datafile=monthfiles[fileindex-1:fileindex+2]
+	else:
+		datafile= monthfiles[fileindex:fileindex+2]
 	return datafile
 def getEventList(eventfile):
 	with open (eventfile) as evfile:
@@ -62,7 +53,10 @@ def getEventList(eventfile):
 			evinfo=dict()
 			evinfo['grid']=row[0]
 			evinfo['dt']=datetime.strptime(row[1]+row[2],'%Y-%m-%d%H%M%S')
-			evlist.append(evinfo)
+			eventdt = evinfo['dt'].strftime('_%Y%m%d_%H%M%S')
+			outfile=evinfo['grid']+'/'+evinfo['grid']+eventdt+'.csv'
+			if not glob.glob(outfile):  #if output file  not exist already 
+				evlist.append(evinfo)
 	return evlist
 
 def getFDRList(fdrfile):
@@ -78,24 +72,81 @@ def getFDRList(fdrfile):
 fdrlist=getFDRList(FDRListFile)
 eventlist= getEventList(EventListFile)
 #print eventlist[1:10]
-for event in eventlist:
+errorlog=open('error.log','w+')
 
-	if event['dt'] > datetime (2015,12,1):
-		mdbfiles = searchfiles(event['dt'])
-		if  len(mdbfiles)>0:
-			print event['grid'],event['dt'].strftime('%m%d_%Y_%H%M%S'),mdbfiles
+for event in eventlist:
+	if event['dt'] < DateRange[0] or event['dt'] > DateRange[1]:
+		continue
+	mdbfiles = searchfiles(event['dt'])
+	if  len(mdbfiles)>0:
+		print event['grid'],event['dt'].strftime('%m%d_%Y_%H%M%S\n'),mdbfiles
+	else:
+		errorlog.write( event['grid']+','+event['dt'].strftime('%Y-%m-%d,%H%M%S')+"--Data File is NOT Found!!!!\n")
+		continue
+	eventfdr=fdrlist[event['grid']]
+	
+	preEventDt=(event['dt']-timedelta(minutes=PreEventMinute))
+	postEventDt=(event['dt']+timedelta(minutes=PostEventMinute))
+	freqdict=dict()
+	for mdb in mdbfiles:
+		print mdb
+		conn =pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='+mdb)
+		cursor=conn.cursor()
+		#check if time in file is correct
+		sql='SELECT `Sample_Date&Time` FROM FRURawData620 WHERE Index=1'
+		row=cursor.execute(sql).fetchone()
+		if row:
+			filetime=row[0]
 		else:
-			print event['grid'],event['dt'].strftime('%m%d_%Y_%H%M%S'),"Data File is NOT Found!!!!"
-		eventfdr=str.strip(str(fdrlist[event['grid']]))
-		eventdt = event['dt'].strftime('#%Y-%m-%d %H:%M:%S#')
-		preEventDt=(event['dt']-timedelta(seconds=1)).strftime('#%Y-%m-%d %H:%M:%S#')
-		postEventDt=(event['dt']-timedelta(minutes=0)).strftime('#%Y-%m-%d %H:%M:%S#')
-		for mdb in mdbfiles:
-			conn =pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='+mdb)
-			cursor=conn.cursor()
-			sql='SELECT `Sample_Date&Time`,ConvNum,FinalFreq FROM FRURawData1009 WHERE `Sample_Date&Time` >='+preEventDt+' AND `Sample_Date&Time` <'+postEventDt
-			print sql
-			for row in cursor.execute(sql):
-				print row
+			continue
+		if (filetime +timedelta (hours=HourMDBLength) )< preEventDt or filetime>postEventDt:
 			cursor.close()
 			conn.close()
+			continue
+		print filetime
+		fdrcount=0
+		for fdr in eventfdr:
+			if fdrcount>=20:
+				break
+			tablename='FRURawData'+str(fdr)
+			if cursor.tables(table=tablename).fetchone():
+				sql='SELECT `Sample_Date&Time`,ConvNum,FinalFreq FROM '+tablename+' WHERE `Sample_Date&Time` >='+preEventDt.strftime('#%Y-%m-%d %H:%M:%S#')+' AND `Sample_Date&Time` <'+postEventDt.strftime('#%Y-%m-%d %H:%M:%S#')
+				#print fdr
+				rows=cursor.execute(sql).fetchall()
+				if len(rows)>0:
+					print fdr,
+					fdrcount+=1
+					for row in rows:
+						timeshift=float((row[0]-event['dt']+timedelta(minutes=PreEventMinute)).seconds)+float(row[1])/10
+						freq=round(row[2],4)
+						if str(timeshift) in freqdict:
+							freqdict[str(timeshift)]=freqdict[str(timeshift)]+[freq]
+							#print tstamp,freqdict[str(tstamp)]
+						else:
+							freqdict[str(timeshift)]=[freq]
+					#print freqdict	
+		cursor.close()
+		conn.close()
+		if len(freqdict.keys()) >=3600:
+			break
+	timeshiftlist=[float(x) for x in freqdict.keys()]
+	timeshiftlist.sort()
+	print '\nData Length:',len(timeshiftlist)
+	if len(timeshiftlist)<3600 and len(timeshiftlist)>0:
+		errorlog.write( event['grid']+','+event['dt'].strftime('%Y-%m-%d,%H%M%S')+"--Not Enough Data\n")
+	if len(timeshiftlist)==0:
+		errorlog.write( event['grid']+','+event['dt'].strftime('%Y-%m-%d,%H%M%S')+"--No Data\n")
+		continue
+	medfreqdict=dict()
+	for timeshift in timeshiftlist:
+		medfreq=round(median(freqdict[str(timeshift)]),4)
+		medfreqdict[str(timeshift)]=medfreq
+		#print timeshift,medfreq
+	eventdt = event['dt'].strftime('_%Y%m%d_%H%M%S')
+	outputpath=event['grid']+'/'
+	outputfile=event['grid']+eventdt+'.csv'
+	with open(outputpath+outputfile,'wb') as outputf:
+		csvwriter=csv.writer(outputf)
+		for timeshift in timeshiftlist:
+			csvwriter.writerow( [timeshift,medfreqdict[str(timeshift)]])
+errorlog.close()			
