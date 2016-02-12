@@ -10,13 +10,14 @@ from datetime import datetime, timedelta
 
 FDRListFile= 'fdrgrid.csv' #(FDR#,Grid)(620,EI\n)
 EventListFile ='eventlist.csv' #(Grid, date, UTCtime)(EI,2011-12-05,041530)
-MDBFilePath='K:/' #./Year/Month 2015
-DateRange= [datetime(2011,2,8),datetime(2012,3,26)] 
+MDBFilePath='J:/' #./Year/Month 2015
+DateRange= [datetime(2014,12,31),datetime(2015,1,2)] 
 PreEventMinute=1
 PostEventMinute=5
-HourMDBLength=8
-
+HourMDBLength=6
+RefUnit=601 # Reference Unit used to check the starting time in the mdb file
 def median(l):
+    l.sort()
     half = len(l) // 2
     if not len(l) % 2:
         return (l[half - 1] + l[half]) / 2.0
@@ -30,6 +31,7 @@ def searchfiles(dt):
 	monthfilename=[x[15:27] for x in monthfiles]
 	filedt= dt.replace(hour = dt.hour // HourMDBLength*HourMDBLength)
 	filename=filedt.strftime('%m%d_%Y_%H') 
+	print monthfilename
 	if filename in monthfilename:
 		fileindex=monthfilename.index(filename)
 	else:
@@ -77,6 +79,7 @@ errorlog=open('error.log','w+')
 for event in eventlist:
 	if event['dt'] < DateRange[0] or event['dt'] > DateRange[1]:
 		continue
+	print event
 	mdbfiles = searchfiles(event['dt'])
 	if  len(mdbfiles)>0:
 		print event['grid'],event['dt'].strftime('%m%d_%Y_%H%M%S\n'),mdbfiles
@@ -87,19 +90,21 @@ for event in eventlist:
 	
 	preEventDt=(event['dt']-timedelta(minutes=PreEventMinute))
 	postEventDt=(event['dt']+timedelta(minutes=PostEventMinute))
+	#print preEventDt,postEventDt
 	freqdict=dict()
 	for mdb in mdbfiles:
 		print mdb
 		conn =pyodbc.connect(r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};DBQ='+mdb)
 		cursor=conn.cursor()
 		#check if time in file is correct
-		sql='SELECT `Sample_Date&Time` FROM FRURawData620 WHERE Index=1'
+		sql='SELECT `Sample_Date&Time` FROM FRURawData'+str(RefUnit)+' WHERE Index=1'
 		row=cursor.execute(sql).fetchone()
 		if row:
 			filetime=row[0]
 		else:
 			continue
 		if (filetime +timedelta (hours=HourMDBLength) )< preEventDt or filetime>postEventDt:
+			#print "File time out of range"
 			cursor.close()
 			conn.close()
 			continue
