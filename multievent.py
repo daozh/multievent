@@ -9,13 +9,13 @@ import csv
 from datetime import datetime, timedelta
 
 FDRListFile= 'fdrgrid.csv' #(FDR#,Grid)(620,EI\n)
-EventListFile ='eventlist.csv' #(Grid, date, UTCtime)(EI,2011-12-05,041530)
-MDBFilePath='J:/' #./Year/Month 2015
-DateRange= [datetime(2014,12,31),datetime(2015,1,2)] 
+EventListFile ='eventlist2016.csv' #(Grid, date, UTCtime)(EI,2011-12-05,041530)
+MDBFilePath='G:/' #./Year/Month 2015
+DateRange= [datetime(2016,3,3),datetime(2016,3,4)] 
 PreEventMinute=1
 PostEventMinute=5
 HourMDBLength=6
-RefUnit=601 # Reference Unit used to check the starting time in the mdb file
+RefUnit=732 # Reference Unit used to check the starting time in the mdb file
 def median(l):
     l.sort()
     half = len(l) // 2
@@ -28,10 +28,12 @@ def searchfiles(dt):
 	filepath=MDBFilePath+dt.strftime(r'%Y/%m/')
 	monthfiles=glob.glob(filepath+"*.mdb")
 	monthfiles.sort()
-	monthfilename=[x[15:27] for x in monthfiles]
+	monthfilename=[x[-20:-8] for x in monthfiles]
 	filedt= dt.replace(hour = dt.hour // HourMDBLength*HourMDBLength)
 	filename=filedt.strftime('%m%d_%Y_%H') 
 	print monthfilename
+	#print monthfiles
+	#print filename
 	if filename in monthfilename:
 		fileindex=monthfilename.index(filename)
 	else:
@@ -148,10 +150,13 @@ for event in eventlist:
 		medfreqdict[str(timeshift)]=medfreq
 		#print timeshift,medfreq
 	eventdt = event['dt'].strftime('_%Y%m%d_%H%M%S')
-	outputpath=event['grid']+'/'
+	#outputpath=event['grid']+'/'
+	outputpath='./'
 	outputfile=event['grid']+eventdt+'.csv'
+	#outputfile=eventdt+'.csv'
 	with open(outputpath+outputfile,'wb') as outputf:
 		csvwriter=csv.writer(outputf)
+		csvwriter.writerow(['Time',event['grid']+'_FNET.F'])
 		for timeshift in timeshiftlist:
 			csvwriter.writerow( [timeshift,medfreqdict[str(timeshift)]])
 errorlog.close()			

@@ -1,14 +1,20 @@
 import matplotlib.pyplot as plt
-filename ='EI_20070804_214332.csv'
+import sys
+if len(sys.argv)>1:
+	filename=str(sys.argv[1])
+#filename ='EI_20160301_175555.csv'
+print filename
 freq=[]
 tstamp=[]
 with open(filename, 'rb') as datafile:
 	for line in datafile:
 		data=line.split(",")
-		freq.append(data[1])
-		tstamp.append(data[0])
-		#freq=freq.append(data[1])
+		if data[0] <> 'Time':
+			freq.append(data[1])
+			tstamp.append(data[0])
+
 plt.plot(tstamp,freq)
+plt.ticklabel_format(style='plain', axis='y',scilimits=(0,0))
 plt.ylabel('Frequency (Hz)')
 plt.xlabel('Time (second)')
 plt.grid('on')
