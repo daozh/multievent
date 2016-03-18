@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 FDRListFile= 'fdrgrid.csv' #(FDR#,Grid)(620,EI\n)
 EventListFile ='eventlist2016.csv' #(Grid, date, UTCtime)(EI,2011-12-05,041530)
 MDBFilePath='G:/' #./Year/Month 2015
+outputpath='./'
 DateRange= [datetime(2016,3,3),datetime(2016,3,4)] 
 PreEventMinute=1
 PostEventMinute=5
@@ -31,7 +32,7 @@ def searchfiles(dt):
 	monthfilename=[x[-20:-8] for x in monthfiles]
 	filedt= dt.replace(hour = dt.hour // HourMDBLength*HourMDBLength)
 	filename=filedt.strftime('%m%d_%Y_%H') 
-	print monthfilename
+	#print monthfilename
 	#print monthfiles
 	#print filename
 	if filename in monthfilename:
@@ -89,9 +90,9 @@ for event in eventlist:
 		errorlog.write( event['grid']+','+event['dt'].strftime('%Y-%m-%d,%H%M%S')+"--Data File is NOT Found!!!!\n")
 		continue
 	eventfdr=fdrlist[event['grid']]
-	
-	preEventDt=(event['dt']-timedelta(minutes=PreEventMinute))
-	postEventDt=(event['dt']+timedelta(minutes=PostEventMinute))
+	#get event start and end time, shift 11 second
+	preEventDt=(event['dt']-timedelta(seconds = PreEventMinute*60 +11)) 
+	postEventDt=(event['dt']+timedelta(seconds =PostEventMinute * 60 -11))
 	#print preEventDt,postEventDt
 	freqdict=dict()
 	for mdb in mdbfiles:
@@ -124,7 +125,7 @@ for event in eventlist:
 					print fdr,
 					fdrcount+=1
 					for row in rows:
-						timeshift=float((row[0]-event['dt']+timedelta(minutes=PreEventMinute)).seconds)+float(row[1])/10
+						timeshift=float((row[0]-event['dt']+timedelta(seconds = PreEventMinute*60 +11)).seconds)+float(row[1])/10
 						freq=round(row[2],4)
 						if str(timeshift) in freqdict:
 							freqdict[str(timeshift)]=freqdict[str(timeshift)]+[freq]
@@ -151,7 +152,7 @@ for event in eventlist:
 		#print timeshift,medfreq
 	eventdt = event['dt'].strftime('_%Y%m%d_%H%M%S')
 	#outputpath=event['grid']+'/'
-	outputpath='./'
+	
 	outputfile=event['grid']+eventdt+'.csv'
 	#outputfile=eventdt+'.csv'
 	with open(outputpath+outputfile,'wb') as outputf:
